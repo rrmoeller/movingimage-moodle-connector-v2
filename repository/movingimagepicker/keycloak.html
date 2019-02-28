@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<!---
+This file is part of Moodle - http://moodle.org/
+
+Moodle is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+Moodle is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+@package    repository_movingimagepicker v2
+@copyright  2019 Rainer Möller
+@license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+
+--->
+<html>
+<head lang="en">
+
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="">
+    <meta name="author" content="Rainer Moeller - movingimage">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+
+    <title>movingimage SAML login</title>
+
+    <script src="./classes/keycloak.min.js"></script>
+
+</head>
+<body onload="loginMI()">
+
+  <!-- Little status and progress information for user while popup is visible -->
+
+  <h3>movingimage SAML login</h3>
+  <p id="username">User:</p>
+  <p>Status: <span id="status"></span></p>
+
+  <script>
+
+    // Helper function to extract GET parameters from request URL
+    function findGetParameter(parameterName) {
+      var result = '',
+          tmp = [];
+      var items = location.search.substr(1).split('&');
+      for (var index = 0; index < items.length; index++) {
+          tmp = items[index].split('=');
+          if (tmp[0] === parameterName) result = decodeURIComponent(tmp[1]);
+      }
+      return result;
+    }
+
+    // Create and configure Keycloak connection
+    var keycloak = Keycloak({
+      url: 'https://login.movingimage.com/auth',
+      realm: 'platform',
+      clientId: findGetParameter('client')
+    });
+
+    // clean up
+    keycloak.clearToken();
+
+    // Function executed on page body load
+    function loginMI () {
+
+      // Check SSO status
+      keycloak.init({onload: 'check-sso'}).success(function(authenticated) {
+
+        // Output feedback to popup window
+        document.getElementById('status').innerHTML = (authenticated ? 'authenticated' : 'not authenticated');
+
+        // Check if login already successful
+        if (!authenticated) {
+
+          // Log in to movingimage Keycloak
+          idp = findGetParameter('idp');
+          if (idp == '')
+            keycloak.login();
+          else
+            keycloak.login({ idpHint: idp });
+
+        } else {
+
+          // Login was successful, start redirect workflow
+          loadData();
+        }
+
+      }).error(function() {
+
+        // Someting went wrong
+        document.getElementById('status').innerHTML = '<b>failed to initialize</b>';
+
+      });
+    }
+
+    // Executed when login was successful
+    function loadData () {
+
+      // Output feedback to popup window
+      document.getElementById('username').innerHTML = keycloak.idTokenParsed.email;
+
+      // Jump to redirect URL given as GET parameter
+      window.location.href = findGetParameter('redirect') + '?' + location.search.substr(1) + '&' + 'mitoken=' + keycloak.token;
+
+    };
+  </script>
+
+  <!-- Info: popup will be closed automatically by Moodle repository when redirect is successful -->
+
+</body>
+</html>
